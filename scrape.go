@@ -44,18 +44,17 @@ func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout: 5 * time.Second, // Timeout for establishing a connection
+			Timeout: 5 * time.Second,
 		}).DialContext,
-		TLSHandshakeTimeout:   5 * time.Second, // Timeout for TLS handshake
+		TLSHandshakeTimeout:   5 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		IdleConnTimeout:       5 * time.Second,
-		ResponseHeaderTimeout: 5 * time.Second, // Timeout for reading the response header
+		ResponseHeaderTimeout: 5 * time.Second,
 	}
 
-	// Custom HTTP client using the transport
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   5 * time.Second, // Overall request timeout (including read/write)
+		Timeout:   5 * time.Second,
 	}
 
 	c.WithTransport(client.Transport)
@@ -69,7 +68,7 @@ func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 		link, _ = sanitiseURL(link)
 
 		if _, found := visited.Get(link); found {
-			return // Skip if already visited
+			return
 		}
 
 		c.Visit(link)
@@ -78,7 +77,7 @@ func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 	c.OnRequest(func(r *colly.Request) {
 		if pagesVisited >= options.MaxPagesToVisit {
 			fmt.Println("Max pages to visit reached, aborting:", r.URL)
-			r.Abort() // Abort the request if max pages to visit is reached
+			r.Abort()
 			return
 		}
 		r.URL.RawQuery = ""
@@ -86,7 +85,7 @@ func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 
 		if _, found := visited.Get(r.URL.String()); found {
 			fmt.Println("Already visited, aborting:", r.URL)
-			r.Abort() // Abort the request if URL is already visited
+			r.Abort()
 			return
 		}
 	})

@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	sitemapUrls, err := GetSitemapUrls("https://www.elitegarages.co.uk/")
+	sitemapUrls, err := GetSitemapUrls("https://algomo.com")
 	if err != nil {
 		panic(err)
 	}
@@ -16,8 +16,8 @@ func main() {
 
 	scrapeOutcome := ScrapeEntireSite(ScrapeOptions{
 		StartingURLs:    sitemapUrls,
-		ValidDomains:    []string{"www.elitegarages.co.uk", "elitegarages.co.uk"},
-		Concurrency:     25,
+		ValidDomains:    []string{"www.algomo.com", "algomo.com", "help.algomo.com"},
+		Concurrency:     15,
 		MaxDepth:        int(math.Inf(1)),
 		MinTimeBetween:  int(time.Second),
 		MaxPagesToVisit: 5000,
