@@ -5,13 +5,17 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gocolly/colly"
 )
 
-func sanitiseURL(rawURL string) (string, error) {
-	parsedURL, err := url.Parse(rawURL)
+func SanitiseURL(rawURL string) (string, error) {
+	// trim all whitespace
+	trimmedURL := strings.TrimSpace(rawURL)
+
+	parsedURL, err := url.Parse(trimmedURL)
 	if err != nil {
 		return "", err
 	}
@@ -67,7 +71,7 @@ func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 		}
 
 		link := e.Request.AbsoluteURL(e.Attr("href"))
-		link, _ = sanitiseURL(link)
+		link, _ = SanitiseURL(link)
 
 		if _, found := visited.Get(link); found {
 			return
@@ -126,11 +130,21 @@ func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 	})
 
 	for _, url := range options.StartingURLs {
-		url, _ = sanitiseURL(url)
-
-		if _, found := visited.Get(url); !found {
-			c.Visit(url)
+		url, err := SanitiseURL(url)
+		if err != nil {
+			fmt.Println("Error sanitising URL:", url, "Error:", err)
+			continue
 		}
+
+		// if _, found := visited.Get(url); found {
+		// 	fmt.Println("Already visited, don't queue:", url)
+		// 	continue
+		// }
+
+		fmt.Println("Starting URL:", url)
+
+		c.Visit(url)
+
 	}
 
 	c.Wait()

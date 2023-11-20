@@ -6,18 +6,18 @@ import (
 )
 
 type PageSuccess struct {
-	Url     string
-	Content string
+	Url     string `json:"url"`
+	Content string `json:"content"`
 }
 
 type PageError struct {
-	Url string
-	Err error
+	Url string `json:"url"`
+	Err error  `json:"error"`
 }
 
 type ScrapeResult struct {
-	Success []PageSuccess
-	Error   []PageError
+	Success []PageSuccess `json:"successful"`
+	Error   []PageError   `json:"failed"`
 }
 
 var googleUserAgent = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/W.X.Y.Z Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"

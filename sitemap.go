@@ -108,7 +108,26 @@ func GetSitemapUrls(domain string) ([]string, error) {
 		return nil, err
 	}
 
-	return urls, nil
+	var sanitisedUrls []string
+	urlInList := make(map[string]bool)
+
+	for _, url := range urls {
+		sanitisedUrl, error := SanitiseURL(url)
+		if error != nil {
+			fmt.Println("Error sanitising url:", error)
+			return nil, error
+		}
+
+		if _, ok := urlInList[sanitisedUrl]; ok {
+			continue
+		}
+
+		sanitisedUrls = append(sanitisedUrls, sanitisedUrl)
+		urlInList[sanitisedUrl] = true
+
+	}
+
+	return sanitisedUrls, nil
 }
 
 func TimeTrack(start time.Time, functionName string) {
