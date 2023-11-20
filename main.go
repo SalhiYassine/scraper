@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -25,6 +26,12 @@ func main() {
 
 		if r.Method != "POST" {
 			http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming not supported", http.StatusInternalServerError)
 			return
 		}
 
@@ -53,20 +60,41 @@ func main() {
 
 		fmt.Println("Sitemap URLs:", len(sitemapUrls))
 
-		scrapeOutcome := ScrapeEntireSite(ScrapeOptions{
+		scrapedChan := make(chan PageSuccess)
+		failedChan := make(chan PageError)
+
+		go ScrapeEntireSite(ScrapeOptions{
 			StartingURLs:    sitemapUrls,
 			ValidDomains:    options.ValidDomains,
 			Concurrency:     options.Concurrency,
 			MaxDepth:        options.MaxDepth,
 			MinTimeBetween:  options.MinTimeBetween,
 			MaxPagesToVisit: options.MaxPagesToVisit,
-		})
-
-		fmt.Println("Success:", len(scrapeOutcome.Success))
-		fmt.Println("Error:", len(scrapeOutcome.Error))
+		}, scrapedChan, failedChan)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(scrapeOutcome)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			for pageResult := range scrapedChan {
+				json.NewEncoder(w).Encode(pageResult)
+				flusher.Flush()
+			}
+			wg.Done()
+		}()
+
+		go func() {
+			for pageError := range failedChan {
+				json.NewEncoder(w).Encode(pageError)
+				flusher.Flush()
+			}
+			wg.Done()
+		}()
+
+		wg.Wait() // Wait for both channels to close
+		fmt.Println("Finished scraping")
 	})
 
 	fmt.Println("Listening on", addr)

@@ -1,18 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gocolly/colly"
+	"golang.org/x/net/html"
 )
 
 func SanitiseURL(rawURL string) (string, error) {
-	// trim all whitespace
+
 	trimmedURL := strings.TrimSpace(rawURL)
 
 	parsedURL, err := url.Parse(trimmedURL)
@@ -25,13 +28,86 @@ func SanitiseURL(rawURL string) (string, error) {
 	return parsedURL.String(), nil
 }
 
-func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
+func cleanNode(n *html.Node) {
+	var next *html.Node
+	for c := n.FirstChild; c != nil; c = next {
+
+		next = c.NextSibling
+
+		if c.Type == html.ElementNode && (c.Data == "script" || c.Data == "style") {
+			n.RemoveChild(c)
+			continue
+		}
+
+		if c.Type == html.CommentNode {
+			n.RemoveChild(c)
+			continue
+		}
+
+		if c.Type == html.ElementNode {
+			c.Attr = nil
+		}
+
+		cleanNode(c)
+	}
+
+	if n.Type == html.ElementNode && isEmptyNode(n) {
+		n.Parent.RemoveChild(n)
+	}
+}
+
+func isEmptyNode(n *html.Node) bool {
+	if n.Type == html.TextNode {
+
+		return strings.TrimSpace(n.Data) == ""
+	}
+	return n.FirstChild == nil
+}
+
+func cleanHTML(htmlContent string) (string, error) {
+	doc, err := html.Parse(strings.NewReader(htmlContent))
+	if err != nil {
+		return "", err
+	}
+
+	cleanNode(doc)
+
+	var buf bytes.Buffer
+	err = html.Render(&buf, doc)
+	if err != nil {
+		return "", err
+	}
+
+	cleanedHTML := removeExtraWhitespace(buf.String())
+
+	return cleanedHTML, nil
+}
+
+func removeExtraWhitespace(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	wasSpace := false
+
+	for _, r := range s {
+		if unicode.IsSpace(r) {
+			if !wasSpace {
+				b.WriteRune(' ')
+				wasSpace = true
+			}
+		} else {
+			b.WriteRune(r)
+			wasSpace = false
+		}
+	}
+
+	return b.String()
+}
+
+func ScrapeEntireSite(options ScrapeOptions, successChan chan<- PageSuccess, failChan chan<- PageError) {
 	defer TimeTrack(time.Now(), "ScrapeEntireSite")
 
 	fmt.Println("Starting scrape with options:", options)
 
-	var successPages []PageSuccess
-	var errorPages []PageError
 	visited := NewSafeMap()
 	pagesVisited := 0
 
@@ -116,17 +192,23 @@ func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 			return
 		}
 
-		fmt.Println("Success URL:", finalURL, "Content length:", len(r.Body))
+		cleanedHTML, err := cleanHTML(string(r.Body))
+		if err != nil {
+			fmt.Println("Error cleaning HTML:", err)
+			return
+		}
+
+		fmt.Println("Success URL:", finalURL, "Content length:", len(cleanedHTML))
 
 		visited.Set(finalURL, true)
-		successPages = append(successPages, PageSuccess{Url: finalURL, Content: string(r.Body)})
+		successChan <- PageSuccess{Url: finalURL, Content: string(r.Body)}
 	})
 
 	c.OnError(func(r *colly.Response, err error) {
 		pagesVisited++
 		fmt.Println("Failed URL:", r.Request.URL, "Error:", err)
 
-		errorPages = append(errorPages, PageError{Url: r.Request.URL.String(), Err: err})
+		failChan <- PageError{Url: r.Request.URL.String(), Err: err}
 	})
 
 	for _, url := range options.StartingURLs {
@@ -136,10 +218,10 @@ func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 			continue
 		}
 
-		// if _, found := visited.Get(url); found {
-		// 	fmt.Println("Already visited, don't queue:", url)
-		// 	continue
-		// }
+		if _, found := visited.Get(url); found {
+			fmt.Println("Already visited, don't queue:", url)
+			continue
+		}
 
 		fmt.Println("Starting URL:", url)
 
@@ -148,6 +230,6 @@ func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 	}
 
 	c.Wait()
-
-	return ScrapeResult{Success: successPages, Error: errorPages}
+	close(successChan)
+	close(failChan)
 }
