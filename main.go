@@ -48,7 +48,7 @@ func main() {
 
 		sitemapUrls, err := GetSitemapUrls(options.RootUrl)
 		if err != nil {
-			panic(err)
+			sitemapUrls = []string{options.RootUrl}
 		}
 
 		fmt.Println("Sitemap URLs:", len(sitemapUrls))
