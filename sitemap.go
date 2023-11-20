@@ -7,11 +7,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/benjaminestes/robots"
+
 	"github.com/temoto/robotstxt"
 )
 
 func fetchRobotsTxt(domain string) (*robotstxt.RobotsData, error) {
-	resp, err := http.Get(domain + "/robots.txt")
+	robotsLink, err := robots.Locate(domain)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.Get(robotsLink)
 	if err != nil {
 		return nil, err
 	}

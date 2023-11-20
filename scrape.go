@@ -24,6 +24,8 @@ func sanitiseURL(rawURL string) (string, error) {
 func ScrapeEntireSite(options ScrapeOptions) ScrapeResult {
 	defer TimeTrack(time.Now(), "ScrapeEntireSite")
 
+	fmt.Println("Starting scrape with options:", options)
+
 	var successPages []PageSuccess
 	var errorPages []PageError
 	visited := NewSafeMap()
